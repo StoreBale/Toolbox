@@ -22,3 +22,5 @@ npm run build
 ```
 
 建置輸出位於 `dist`，可部署至 Cloudflare Pages。SPA 路由規則位於 `public/_redirects`。
+
+推送到 `main` 後，GitHub Actions 會先執行測試與建置，再自動部署到 Cloudflare Pages。

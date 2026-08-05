@@ -1,0 +1,41 @@
+const paths = {
+  home: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h13V10M9 20v-6h6v6"/>',
+  pdf: '<path d="M7 2h7l5 5v15H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z"/><path d="M14 2v6h6M9 13h6M9 17h4"/>',
+  image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 20"/>',
+  daily: '<path d="M4 7h16M7 4v6m10-6v6M5 11h14v9H5z"/><path d="m9 16 2 2 4-4"/>',
+  text: '<path d="M5 6h14M8 10h8M6 14h12M9 18h6"/>',
+  other: '<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>',
+  upload: '<path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+  close: '<path d="m6 6 12 12M18 6 6 18"/>',
+  arrow: '<path d="M5 12h14m-5-5 5 5-5 5"/>',
+  shield: '<path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>',
+  merge: '<path d="M4 6h3c4 0 4 6 8 6h5M4 18h3c4 0 4-6 8-6"/><path d="m17 9 3 3-3 3"/>',
+  split: '<path d="M4 12h5c4 0 4-6 8-6h3M9 12c4 0 4 6 8 6h3"/><path d="m17 3 3 3-3 3m0 6 3 3-3 3"/>',
+  compressPdf: '<path d="M7 2h7l5 5v15H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z"/><path d="M14 2v6h6M9 12l2 2m0 0 2-2m-2 2v5M16 19v-5m0 0-2 2m2-2 2 2"/>',
+  compressImage: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m8 9 3 3m0 0V8m0 4H7m9 3-3-3m0 0v4m0-4h4"/>',
+  convert: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 10h9m0 0-3-3m3 3-3 3M17 15H8m0 0 3 3m-3-3 3-3"/>',
+  rotate: '<path d="M20 7v5h-5"/><path d="M18.5 15A7 7 0 1 1 19 9l1 3"/>',
+  resize: '<path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/><path d="m3 8 6-6m12 6-6-6M3 16l6 6m12-6-6 6"/>',
+  delete: '<path d="M4 7h16M9 7V4h6v3m-9 0 1 14h10l1-14M10 11v6m4-6v6"/>',
+  flip: '<path d="M12 3v18M8 6 3 12l5 6m8-12 5 6-5 6"/><path d="M5 12h4m6 0h4"/>',
+  unlock: '<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2M12 15v2"/>',
+  crop: '<path d="M7 3v14a2 2 0 0 0 2 2h12M3 7h14a2 2 0 0 1 2 2v12"/>',
+  watermark: '<path d="M4 19 9 5h2l5 14M6 14h8"/><path d="M18 8h3m-1.5-1.5v3"/>',
+  pdfToImage: '<path d="M5 3h8l4 4v5M13 3v5h5"/><rect x="8" y="11" width="12" height="9" rx="1.5"/><circle cx="12" cy="14" r="1"/><path d="m9 19 4-4 2 2 2-2 3 3"/>',
+  imageToPdf: '<rect x="3" y="4" width="11" height="9" rx="1.5"/><path d="m4 12 3-3 2 2 2-2 3 3M11 15v6h9V10h-4M16 10v4h4"/>',
+  organize: '<rect x="3" y="3" width="7" height="8" rx="1"/><rect x="14" y="3" width="7" height="8" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17h7m-3-3 3 3-3 3"/>',
+  pageNumbers: '<path d="M6 2h8l4 4v16H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z"/><path d="M14 2v5h5M8 12h7M8 16h3M15 15v4m-2-2h4"/>',
+  pdfWatermark: '<path d="M6 2h8l4 4v16H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z"/><path d="M14 2v5h5M8 18l2.5-7h1l2.5 7m-5-3h4"/>',
+  qr: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zm4 4h3v3h-3zm0-4h3M14 19v2"/>',
+  zip: '<path d="M4 5h6l2 2h8v13H4z"/><path d="M12 7v3m0 2v3m0 2v2"/>',
+  counter: '<path d="M5 6h14M5 10h9M5 14h14M5 18h9"/><path d="M18 10v8m-2-2h4"/>',
+  cleanup: '<path d="M4 6h11M4 11h8M4 16h6"/><path d="m16 13 1.2 3.1L20 17.5l-2.8 1.4L16 22l-1.2-3.1-2.8-1.4 2.8-1.4L16 13Z"/>',
+  json: '<path d="M9 3H6a2 2 0 0 0-2 2v4c0 2-1 3-2 3 1 0 2 1 2 3v4a2 2 0 0 0 2 2h3M15 3h3a2 2 0 0 1 2 2v4c0 2 1 3 2 3-1 0-2 1-2 3v4a2 2 0 0 1-2 2h-3"/>',
+  csvJson: '<path d="M4 4h7v7H4zM13 13h7v7h-7z"/><path d="M11 7h5a2 2 0 0 1 2 2v4M7 11v5a2 2 0 0 0 2 2h4"/>'
+};
+
+export function icon(name, className = '') {
+  return `<svg class="${className}" viewBox="0 0 24 24" aria-hidden="true">${paths[name] ?? paths.other}</svg>`;
+}

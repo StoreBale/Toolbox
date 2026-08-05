@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Toolbox Logo</title>
+  <desc id="desc">由模組化方塊組成字母 T 的藍色工具箱標誌</desc>
+  <defs>
+    <linearGradient id="background" x1="18" y1="12" x2="108" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1688FF"/>
+      <stop offset="1" stop-color="#2446C7"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#123A91" flood-opacity=".28"/>
+    </filter>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="30" fill="url(#background)" filter="url(#shadow)"/>
+  <g fill="#fff">
+    <rect x="28" y="30" width="20" height="20" rx="6"/>
+    <rect x="54" y="30" width="20" height="20" rx="6"/>
+    <rect x="80" y="30" width="20" height="20" rx="6"/>
+    <rect x="54" y="56" width="20" height="20" rx="6"/>
+    <rect x="54" y="82" width="20" height="20" rx="6"/>
+  </g>
+  <path d="m93 78 2.6 7.4L103 88l-7.4 2.6L93 98l-2.6-7.4L83 88l7.4-2.6L93 78Z" fill="#8FE3FF"/>
+</svg>

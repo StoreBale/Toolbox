@@ -34,7 +34,9 @@ async function apiRequest(path, options = {}) {
   }
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(body.detail || '帳號服務發生錯誤');
+    const error = new Error(body.detail || '帳號服務發生錯誤');
+    error.code = body.code;
+    throw error;
   }
   return response.status === 204 ? null : response.json();
 }
@@ -62,10 +64,10 @@ export async function loginAccount({ email, password, remember = false }) {
   });
 }
 
-export async function loginWithGoogle(credential) {
+export async function loginWithGoogle(credential, password = '') {
   return apiRequest('/auth/google', {
     method: 'POST',
-    body: JSON.stringify({ credential })
+    body: JSON.stringify({ credential, ...(password ? { password } : {}) })
   });
 }
 
@@ -161,7 +163,7 @@ async function setupGoogleButton(status) {
       callback: async ({ credential }) => {
         status.textContent = '';
         try {
-          const session = await loginWithGoogle(credential);
+          const session = await loginWithGoogle(credential, document.querySelector('#auth-password')?.value || '');
           saveSession(session, true);
           document.querySelector('#auth-dialog')?.close();
           window.dispatchEvent(new CustomEvent('authchange'));
@@ -219,6 +221,8 @@ export function bindAuth() {
       document.querySelector('#auth-description').textContent = mode === 'login' ? '登入你的 Toolbox 帳號' : '註冊後可在不同裝置登入';
       submit.textContent = mode === 'login' ? '登入' : '建立帳號';
       password.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+      password.minLength = mode === 'login' ? 8 : 12;
+      password.placeholder = mode === 'login' ? '至少 8 個字元' : '註冊至少 12 個字元';
       status.textContent = '';
     });
   });

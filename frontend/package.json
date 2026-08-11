@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node tests/merge.test.js && node tests/tools.test.js && node tests/auth.test.js",
+    "test": "node tests/merge.test.js && node tests/tools.test.js && node tests/auth.test.js && node tests/security.test.js",
     "test:cloudflare": "node tests/cloudflare-auth-smoke.js",
     "test:admin": "node tests/cloudflare-admin-smoke.js"
   },

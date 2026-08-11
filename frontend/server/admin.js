@@ -1,4 +1,4 @@
-import { verifyPassword } from './auth.js';
+import { clearRateLimit, consumeRateLimit, verifyPassword } from './auth.js';
 
 const encoder = new TextEncoder();
 const COOKIE_NAME = 'toolbox_admin';
@@ -88,7 +88,7 @@ async function csrfToken(secret, nonce) {
   return sign(secret, `csrf:${nonce}`);
 }
 
-function html(content, status = 200) {
+function html(content, status = 200, extraHeaders = {}) {
   return new Response(content, {
     status,
     headers: {
@@ -97,7 +97,8 @@ function html(content, status = 200) {
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'DENY',
       'Referrer-Policy': 'no-referrer',
-      'Content-Security-Policy': "default-src 'self'; style-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
+      'Content-Security-Policy': "default-src 'self'; style-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+      ...extraHeaders
     }
   });
 }
@@ -180,6 +181,7 @@ async function login(request, env) {
   if (!env.ADMIN_SESSION_SECRET || !env.PASSWORD_PEPPER) {
     return html(loginPage('後台尚未完成安全設定', true), 503);
   }
+  await consumeRateLimit(request, env, 'admin-login-ip', null, 20, 15 * 60);
   const form = await request.formData();
   const email = String(form.get('email') || '').trim().toLowerCase();
   const password = String(form.get('password') || '');
@@ -187,8 +189,10 @@ async function login(request, env) {
     'SELECT id, email, password_hash FROM users WHERE email = ? AND is_admin = 1'
   ).bind(email).first();
   if (!user?.password_hash || !await verifyPassword(password, user.password_hash, env.PASSWORD_PEPPER)) {
+    await consumeRateLimit(request, env, 'admin-login-account', email, 8, 15 * 60);
     return html(loginPage('帳號或密碼不正確'), 401);
   }
+  await clearRateLimit(env, 'admin-login-account', email);
   const session = await createSession(user.id, env.ADMIN_SESSION_SECRET);
   return redirect('/admin', 303, {
     'Set-Cookie': `${COOKIE_NAME}=${session}; Max-Age=${SESSION_SECONDS}; Path=/admin; HttpOnly; Secure; SameSite=Strict`
@@ -244,6 +248,9 @@ export async function handleAdmin(request, env) {
     }
     return new Response('Method Not Allowed', { status: 405, headers: { Allow: 'GET, POST' } });
   } catch (error) {
+    if (error?.status === 429) {
+      return html(loginPage(error.message), 429, error.headers || {});
+    }
     console.error(error);
     return html(shell('後台錯誤', '<main class="login-shell"><section class="login-card"><h1>後台暫時無法使用</h1><p>請稍後再試。</p></section></main>'), 500);
   }

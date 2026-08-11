@@ -4,9 +4,9 @@ services:
     environment:
       POSTGRES_DB: toolbox
       POSTGRES_USER: toolbox
-      POSTGRES_PASSWORD: toolbox
+      POSTGRES_PASSWORD: ${TOOLBOX_POSTGRES_PASSWORD:-local-development-only}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - toolbox_postgres:/var/lib/postgresql/data
     healthcheck:

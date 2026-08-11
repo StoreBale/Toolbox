@@ -4,18 +4,21 @@ const PASSWORD_ITERATIONS = 100_000;
 const SESSION_DAYS = 30;
 
 class ApiError extends Error {
-  constructor(status, detail) {
+  constructor(status, detail, code = null, headers = {}) {
     super(detail);
     this.status = status;
+    this.code = code;
+    this.headers = headers;
   }
 }
 
-function json(body, status = 200) {
+function json(body, status = 200, extraHeaders = {}) {
   return Response.json(body, {
     status,
     headers: {
       'Cache-Control': 'no-store',
-      'X-Content-Type-Options': 'nosniff'
+      'X-Content-Type-Options': 'nosniff',
+      ...extraHeaders
     }
   });
 }
@@ -24,7 +27,9 @@ async function safely(action) {
   try {
     return await action();
   } catch (error) {
-    if (error instanceof ApiError) return json({ detail: error.message }, error.status);
+    if (error instanceof ApiError) {
+      return json({ detail: error.message, ...(error.code ? { code: error.code } : {}) }, error.status, error.headers);
+    }
     console.error(error);
     return json({ detail: '伺服器暫時無法處理請求' }, 500);
   }
@@ -44,6 +49,37 @@ function fromBase64Url(value) {
 async function sha256(value) {
   const digest = await crypto.subtle.digest('SHA-256', encoder.encode(value));
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function clientAddress(request) {
+  return request.headers.get('CF-Connecting-IP') || 'local';
+}
+
+async function rateLimitKey(env, scope, subject) {
+  if (!env.PASSWORD_PEPPER) throw new ApiError(503, '帳號安全設定尚未完成');
+  return sha256(`${env.PASSWORD_PEPPER}:${scope}:${String(subject).toLowerCase()}`);
+}
+
+export async function consumeRateLimit(request, env, scope, subject, limit, windowSeconds) {
+  const bucketKey = await rateLimitKey(env, scope, subject || clientAddress(request));
+  const now = Math.floor(Date.now() / 1000);
+  const expiresAt = now + windowSeconds;
+  const row = await env.DB.prepare(`
+    INSERT INTO auth_rate_limits (bucket_key, attempts, expires_at) VALUES (?, 1, ?)
+    ON CONFLICT(bucket_key) DO UPDATE SET
+      attempts = CASE WHEN expires_at <= ? THEN 1 ELSE attempts + 1 END,
+      expires_at = CASE WHEN expires_at <= ? THEN excluded.expires_at ELSE expires_at END
+    RETURNING attempts, expires_at
+  `).bind(bucketKey, expiresAt, now, now).first();
+  if (Number(row?.attempts || 0) > limit) {
+    const retryAfter = Math.max(1, Number(row.expires_at) - now);
+    throw new ApiError(429, '嘗試次數過多，請稍後再試', 'RATE_LIMITED', { 'Retry-After': String(retryAfter) });
+  }
+}
+
+export async function clearRateLimit(env, scope, subject) {
+  const bucketKey = await rateLimitKey(env, scope, subject);
+  await env.DB.prepare('DELETE FROM auth_rate_limits WHERE bucket_key = ?').bind(bucketKey).run();
 }
 
 async function passwordMaterial(password, pepper) {
@@ -206,9 +242,11 @@ async function verifyGoogleCredential(credential, clientId) {
 
 export function register(request, env) {
   return safely(async () => {
+    await consumeRateLimit(request, env, 'register-ip', null, 8, 15 * 60);
     const body = await payload(request);
     const email = normalizedEmail(body.email);
     const password = validPassword(body.password);
+    if (password.length < 12) throw new ApiError(422, '新密碼至少需要 12 個字元');
     if (await env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first()) {
       throw new ApiError(409, '此電子郵件已經註冊');
     }
@@ -238,6 +276,7 @@ export function register(request, env) {
 
 export function login(request, env) {
   return safely(async () => {
+    await consumeRateLimit(request, env, 'login-ip', null, 40, 15 * 60);
     const body = await payload(request);
     const email = normalizedEmail(body.email);
     const password = validPassword(body.password);
@@ -245,8 +284,10 @@ export function login(request, env) {
       'SELECT id, email, password_hash, google_sub FROM users WHERE email = ?'
     ).bind(email).first();
     if (!user || !user.password_hash || !await verifyPassword(password, user.password_hash, env.PASSWORD_PEPPER)) {
+      await consumeRateLimit(request, env, 'login-account', email, 8, 15 * 60);
       throw new ApiError(401, '電子郵件或密碼不正確');
     }
+    await clearRateLimit(env, 'login-account', email);
     const session = await newSession(user, Boolean(body.remember));
     await sessionStatement(env.DB, session).run();
     return json(sessionResponse(user, session));
@@ -255,6 +296,7 @@ export function login(request, env) {
 
 export function googleLogin(request, env) {
   return safely(async () => {
+    await consumeRateLimit(request, env, 'google-ip', null, 30, 15 * 60);
     const body = await payload(request);
     if (!env.GOOGLE_CLIENT_ID) throw new ApiError(503, 'Google 登入尚未設定');
     const claims = await verifyGoogleCredential(body.credential, env.GOOGLE_CLIENT_ID);
@@ -275,6 +317,17 @@ export function googleLogin(request, env) {
         throw new ApiError(409, '此電子郵件已連結其他 Google 帳號');
       }
       if (!user.google_sub) {
+        if (!user.password_hash) throw new ApiError(409, '此帳號無法自動連結 Google');
+        const linkPassword = String(body.password || '');
+        if (!linkPassword || !await verifyPassword(linkPassword, user.password_hash, env.PASSWORD_PEPPER)) {
+          await consumeRateLimit(request, env, 'google-link-account', email, 8, 15 * 60);
+          throw new ApiError(
+            409,
+            '這個信箱已有密碼帳號，請輸入原帳號密碼後再次使用 Google 登入以完成連結',
+            'LINK_PASSWORD_REQUIRED'
+          );
+        }
+        await clearRateLimit(env, 'google-link-account', email);
         statements.push(env.DB.prepare('UPDATE users SET google_sub = ? WHERE id = ?').bind(googleSub, user.id));
         user = { ...user, google_sub: googleSub };
       }

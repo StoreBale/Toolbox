@@ -1,5 +1,6 @@
 import { bindHome, homeTemplate } from './pages/home.js';
 import { bindSidebar, sidebarTemplate } from './sidebar.js';
+import { authDialogTemplate, bindAuth } from './auth.js';
 
 const toolRoutes = {
   '/pdf/merge': () => import('./tools/pdf/merge/page.js').then((module) => ({ template: module.pdfMergeTemplate, bind: module.bindPdfMerge })),
@@ -54,9 +55,10 @@ export async function renderApp() {
   const loader = toolRoutes[pathname];
   const app = document.querySelector('#app');
 
-  app.innerHTML = `${sidebarTemplate(pathname)}<div class="app-shell">${loader ? '<div class="route-loading">載入工具中…</div>' : homeTemplate(categoryFromPath(pathname))}</div>`;
+  app.innerHTML = `${sidebarTemplate(pathname)}<div class="app-shell">${loader ? '<div class="route-loading">載入工具中…</div>' : homeTemplate(categoryFromPath(pathname))}</div>${authDialogTemplate()}`;
   bindLinks();
   bindSidebar();
+  bindAuth();
 
   if (!loader) {
     bindHome();
@@ -72,3 +74,4 @@ export async function renderApp() {
 }
 
 window.addEventListener('popstate', renderApp);
+window.addEventListener('authchange', renderApp);

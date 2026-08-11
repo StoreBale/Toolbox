@@ -14,9 +14,51 @@ try {
   await mkdir('tmp/images', { recursive: true });
   await server.listen();
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  let testLoggedIn = false;
+  await page.route('**/api/auth/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const body = route.request().postDataJSON?.() ?? {};
+    if (path.endsWith('/logout')) {
+      testLoggedIn = false;
+      await route.fulfill({ status: 204 });
+    } else if (path.endsWith('/login') && body.password === 'wrong-password') {
+      await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ detail: '電子郵件或密碼不正確' }) });
+    } else if (path.endsWith('/me') && !testLoggedIn) {
+      await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ detail: '尚未登入' }) });
+    } else {
+      testLoggedIn = true;
+      await route.fulfill({
+        status: path.endsWith('/register') ? 201 : 200,
+        contentType: 'application/json',
+        body: JSON.stringify(path.endsWith('/me')
+          ? { email: 'browser-test@example.com', provider: 'password' }
+          : { token: 'browser-token', expires_at: '2026-09-05T00:00:00Z', user: { email: 'browser-test@example.com', provider: 'password' } })
+      });
+    }
+  });
 
   await page.goto('http://127.0.0.1:4173', { waitUntil: 'networkidle' });
   assert.equal(await page.locator('.tool-card').count(), 23);
+  await page.locator('#login-button').click();
+  await page.locator('#google-auth-placeholder').click();
+  assert.match(await page.locator('#auth-status').textContent(), /尚未設定/);
+  await page.locator('[data-auth-mode="register"]').click();
+  await page.locator('#auth-email').fill('browser-test@example.com');
+  await page.locator('#auth-password').fill('toolbox-test-password');
+  await page.screenshot({ path: 'tmp/browser/desktop-register.png' });
+  await page.locator('#auth-submit').click();
+  await page.locator('.account-summary').waitFor();
+  assert.match(await page.locator('.account-summary').textContent(), /browser-test@example.com/);
+  await page.locator('#logout-button').click();
+  await page.locator('#login-button').click();
+  await page.locator('#auth-email').fill('browser-test@example.com');
+  await page.locator('#auth-password').fill('wrong-password');
+  await page.locator('#auth-submit').click();
+  await page.waitForFunction(() => document.querySelector('#auth-status')?.textContent.includes('不正確'));
+  assert.match(await page.locator('#auth-status').textContent(), /不正確/);
+  await page.locator('#auth-password').fill('toolbox-test-password');
+  await page.locator('#auth-submit').click();
+  await page.locator('.account-summary').waitFor();
   await page.screenshot({ path: 'tmp/browser/desktop-home.png', fullPage: true });
 
   await page.goto('http://127.0.0.1:4173/daily/qr', { waitUntil: 'networkidle' });

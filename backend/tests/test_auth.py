@@ -1,0 +1,63 @@
+from sqlalchemy import select
+
+from app.models import User
+
+
+def authorization(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def test_register_login_me_and_logout(client, db_session):
+    registration = client.post(
+        "/api/auth/register",
+        json={"email": "User@Example.com", "password": "password123", "remember": True},
+    )
+    assert registration.status_code == 201
+    session = registration.json()
+    assert session["user"] == {"email": "user@example.com", "provider": "password"}
+    assert session["token"]
+
+    stored_user = db_session.scalar(select(User).where(User.email == "user@example.com"))
+    assert stored_user.password_hash != "password123"
+    assert stored_user.password_hash.startswith("$argon2")
+
+    duplicate = client.post(
+        "/api/auth/register",
+        json={"email": "user@example.com", "password": "another-password", "remember": False},
+    )
+    assert duplicate.status_code == 409
+
+    wrong = client.post(
+        "/api/auth/login",
+        json={"email": "user@example.com", "password": "wrong-password", "remember": False},
+    )
+    assert wrong.status_code == 401
+
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "user@example.com", "password": "password123", "remember": False},
+    )
+    assert login.status_code == 200
+    token = login.json()["token"]
+    assert client.get("/api/auth/me", headers=authorization(token)).json()["email"] == "user@example.com"
+    assert client.post("/api/auth/logout", headers=authorization(token)).status_code == 204
+    assert client.get("/api/auth/me", headers=authorization(token)).status_code == 401
+
+
+def test_google_registration_and_existing_email_link(client, monkeypatch):
+    client.post(
+        "/api/auth/register",
+        json={"email": "google@example.com", "password": "password123", "remember": False},
+    )
+    monkeypatch.setattr(
+        "app.routes.auth.verify_google_credential",
+        lambda credential: {"sub": "google-user-123", "email": "google@example.com", "email_verified": True},
+    )
+
+    response = client.post("/api/auth/google", json={"credential": "mock-google-credential-value"})
+    assert response.status_code == 200
+    assert response.json()["user"] == {"email": "google@example.com", "provider": "google"}
+
+
+def test_health(client):
+    assert client.get("/api/health").json() == {"status": "ok"}

@@ -11,6 +11,8 @@ const paths = {
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
   arrow: '<path d="M5 12h14m-5-5 5 5-5 5"/>',
   shield: '<path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  logout: '<path d="M10 5H5v14h5M14 8l4 4-4 4m4-4H9"/>',
   merge: '<path d="M4 6h3c4 0 4 6 8 6h5M4 18h3c4 0 4-6 8-6"/><path d="m17 9 3 3-3 3"/>',
   split: '<path d="M4 12h5c4 0 4-6 8-6h3M9 12c4 0 4 6 8 6h3"/><path d="m17 3 3 3-3 3m0 6 3 3-3 3"/>',
   compressPdf: '<path d="M7 2h7l5 5v15H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z"/><path d="M14 2v6h6M9 12l2 2m0 0 2-2m-2 2v5M16 19v-5m0 0-2 2m2-2 2 2"/>',

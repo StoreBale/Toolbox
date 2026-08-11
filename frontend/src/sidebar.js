@@ -1,5 +1,6 @@
 import { categories } from './catalog.js';
 import { icon } from './icons.js';
+import { accountControlTemplate } from './auth.js';
 
 export function sidebarTemplate(pathname) {
   const categoryLinks = categories.map((category) => {
@@ -22,6 +23,7 @@ export function sidebarTemplate(pathname) {
         <a class="nav-link ${pathname === '/' ? 'active' : ''}" href="/" data-link>${icon('home')}<span>所有工具</span></a>
         ${categoryLinks}
       </nav>
+      <div class="sidebar-account">${accountControlTemplate()}</div>
       <div class="sidebar-note">
         ${icon('shield')}
         <p><strong>隱私優先</strong><span>檔案只在瀏覽器本機處理</span></p>

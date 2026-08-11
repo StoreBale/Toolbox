@@ -40,10 +40,12 @@ const login = await request('/admin/login', {
 assert.equal(login.status, 303);
 assert.equal(login.headers.get('location'), '/admin');
 const cookie = login.headers.get('set-cookie');
-assert.match(cookie, /toolbox_admin=/);
+assert.match(cookie, /__Host-toolbox_admin=/);
 assert.match(cookie, /HttpOnly/i);
 assert.match(cookie, /Secure/i);
 assert.match(cookie, /SameSite=Strict/i);
+assert.match(cookie, /Path=\//i);
+assert.match(cookie, /Max-Age=7200/i);
 
 const dashboard = await request('/admin', { headers: { Cookie: cookie.split(';', 1)[0] } });
 assert.equal(dashboard.status, 200);
@@ -85,7 +87,8 @@ assert.equal(deletedLogin.status, 401);
 
 const logout = await request('/admin/logout', {
   method: 'POST',
-  headers: { Cookie: cookie.split(';', 1)[0] }
+  headers: { Cookie: cookie.split(';', 1)[0] },
+  body: new URLSearchParams({ csrf })
 });
 assert.equal(logout.status, 303);
 assert.equal(logout.headers.get('location'), '/admin/login');

@@ -5,6 +5,11 @@ const GOOGLE_CLIENT_ID = import.meta.env?.VITE_GOOGLE_CLIENT_ID || '643484536755
 const TOKEN_KEY = 'toolbox-auth-token';
 let currentUser = null;
 
+function usesCookieSession() {
+  if (typeof location === 'undefined') return API_URL.startsWith('/');
+  return new URL(API_URL, location.origin).origin === location.origin;
+}
+
 function getToken() {
   if (typeof sessionStorage === 'undefined') return null;
   return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
@@ -12,6 +17,10 @@ function getToken() {
 
 function clearSession() {
   currentUser = null;
+  clearStoredToken();
+}
+
+function clearStoredToken() {
   sessionStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(TOKEN_KEY);
 }
@@ -19,7 +28,7 @@ function clearSession() {
 function saveSession(session, remember) {
   clearSession();
   currentUser = session.user;
-  (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, session.token);
+  if (!usesCookieSession()) (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, session.token);
 }
 
 async function apiRequest(path, options = {}) {
@@ -28,7 +37,7 @@ async function apiRequest(path, options = {}) {
   if (token) headers.Authorization = `Bearer ${token}`;
   let response;
   try {
-    response = await fetch(`${API_URL}${path}`, { ...options, headers });
+    response = await fetch(`${API_URL}${path}`, { credentials: 'include', ...options, headers });
   } catch {
     throw new Error('無法連線到帳號伺服器');
   }
@@ -42,9 +51,10 @@ async function apiRequest(path, options = {}) {
 }
 
 export async function initializeAuth() {
-  if (!getToken()) return;
+  if (!usesCookieSession() && !getToken()) return;
   try {
     currentUser = await apiRequest('/auth/me');
+    if (usesCookieSession()) clearStoredToken();
   } catch {
     clearSession();
   }

@@ -1,8 +1,19 @@
 import { clearRateLimit, consumeRateLimit, verifyPassword } from './auth.js';
 
 const encoder = new TextEncoder();
-const COOKIE_NAME = 'toolbox_admin';
-const SESSION_SECONDS = 8 * 60 * 60;
+const COOKIE_NAME = '__Host-toolbox_admin';
+const SESSION_SECONDS = 2 * 60 * 60;
+const MAX_FORM_BYTES = 8 * 1024;
+
+function assertSafePost(request) {
+  const origin = request.headers.get('Origin');
+  if (request.headers.get('Sec-Fetch-Site') === 'cross-site' || (origin && origin !== new URL(request.url).origin)) {
+    throw Object.assign(new Error('不允許跨來源請求'), { status: 403 });
+  }
+  if (Number(request.headers.get('Content-Length') || 0) > MAX_FORM_BYTES) {
+    throw Object.assign(new Error('請求內容過大'), { status: 413 });
+  }
+}
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -107,14 +118,17 @@ function redirect(path, status = 303, headers = {}) {
   return new Response(null, { status, headers: { Location: path, 'Cache-Control': 'no-store', ...headers } });
 }
 
-function shell(title, body, adminEmail = '') {
+function shell(title, body, adminEmail = '', csrf = '') {
+  const logoutForm = csrf
+    ? `<form method="post" action="/admin/logout"><input type="hidden" name="csrf" value="${csrf}"><button class="ghost-button" type="submit">登出</button></form>`
+    : '';
   const sidebar = adminEmail ? `
     <aside class="admin-sidebar">
       <a class="admin-brand" href="/admin"><span class="brand-mark">T</span><span><strong>Toolbox</strong><small>CONTROL CENTER</small></span></a>
       <nav><a class="active" href="/admin">總覽與帳號</a><a href="/api/health">系統狀態</a><a href="/">返回工具箱</a></nav>
       <div class="sidebar-foot">
         <div class="admin-account"><span class="avatar">${escapeHtml(adminEmail[0].toUpperCase())}</span><span><strong>${escapeHtml(adminEmail)}</strong><small>管理員</small></span></div>
-        <form method="post" action="/admin/logout"><button class="ghost-button" type="submit">登出</button></form>
+        ${logoutForm}
       </div>
     </aside>` : '';
   return `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} · Toolbox Admin</title><link rel="stylesheet" href="/admin.css"></head><body class="${adminEmail ? 'dashboard-body' : 'login-body'}">${sidebar}${body}</body></html>`;
@@ -174,7 +188,7 @@ async function dashboard(request, env, admin) {
     ${notice ? `<div class="notice">${escapeHtml(notice)}</div>` : ''}
     <section class="stat-grid"><article><span>使用者總數</span><strong>${Number(stats.total_users || 0)}</strong><small>所有已建立帳號</small></article><article><span>有效登入</span><strong>${Number(stats.active_sessions || 0)}</strong><small>尚未過期的工作階段</small></article><article><span>電子郵件帳號</span><strong>${Number(stats.password_users || 0)}</strong><small>具備密碼登入</small></article><article><span>Google 帳號</span><strong>${Number(stats.google_users || 0)}</strong><small>已連結 Google</small></article></section>
     <section class="panel"><div class="panel-heading"><div><p class="eyebrow">USERS</p><h2>帳號管理</h2></div><span>${Number(stats.total_users || 0)} 個帳號</span></div><div class="table-wrap"><table><thead><tr><th>使用者</th><th>登入方式</th><th>有效登入</th><th>建立時間</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table></div></section>
-  </main>`, admin.user.email));
+  </main>`, admin.user.email, token));
 }
 
 async function login(request, env) {
@@ -195,7 +209,7 @@ async function login(request, env) {
   await clearRateLimit(env, 'admin-login-account', email);
   const session = await createSession(user.id, env.ADMIN_SESSION_SECRET);
   return redirect('/admin', 303, {
-    'Set-Cookie': `${COOKIE_NAME}=${session}; Max-Age=${SESSION_SECONDS}; Path=/admin; HttpOnly; Secure; SameSite=Strict`
+    'Set-Cookie': `${COOKIE_NAME}=${session}; Max-Age=${SESSION_SECONDS}; Path=/; HttpOnly; Secure; SameSite=Strict`
   });
 }
 
@@ -213,16 +227,17 @@ export async function handleAdmin(request, env) {
   try {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
+    if (request.method === 'POST') assertSafePost(request);
     if (path === '/admin/login' && request.method === 'GET') {
       return await currentAdmin(request, env) ? redirect('/admin', 302) : html(loginPage());
     }
     if (path === '/admin/login' && request.method === 'POST') return login(request, env);
-    if (path === '/admin/logout' && request.method === 'POST') {
-      return redirect('/admin/login', 303, { 'Set-Cookie': `${COOKIE_NAME}=; Max-Age=0; Path=/admin; HttpOnly; Secure; SameSite=Strict` });
-    }
-
     const admin = await currentAdmin(request, env);
     if (!admin) return redirect('/admin/login');
+    if (path === '/admin/logout' && request.method === 'POST') {
+      if (!await validCsrf(request, env, admin)) return redirect('/admin?notice=' + encodeURIComponent('安全驗證失敗'));
+      return redirect('/admin/login', 303, { 'Set-Cookie': `${COOKIE_NAME}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict` });
+    }
     if (path === '/admin' && request.method === 'GET') return dashboard(request, env, admin);
 
     const match = path.match(/^\/admin\/users\/([^/]+)\/(revoke|delete)$/);
@@ -238,7 +253,7 @@ export async function handleAdmin(request, env) {
       const user = await env.DB.prepare('SELECT id, email FROM users WHERE id = ?').bind(userId).first();
       if (!user) return redirect('/admin?notice=' + encodeURIComponent('找不到此帳號'));
       const token = await csrfToken(env.ADMIN_SESSION_SECRET, admin.nonce);
-      return html(shell('確認刪除', `<main class="admin-main narrow-main"><a class="back-link" href="/admin">← 返回帳號管理</a><section class="panel confirm-panel"><span class="danger-icon">!</span><p class="eyebrow">DANGEROUS ACTION</p><h1>刪除帳號？</h1><p>這會永久刪除 <strong>${escapeHtml(user.email)}</strong> 及其所有登入工作階段，無法復原。</p><div class="confirm-actions"><a class="secondary-button" href="/admin">取消</a><form method="post" action="/admin/users/${encodeURIComponent(user.id)}/delete"><input type="hidden" name="csrf" value="${token}"><button class="danger-button" type="submit">永久刪除帳號</button></form></div></section></main>`, admin.user.email));
+      return html(shell('確認刪除', `<main class="admin-main narrow-main"><a class="back-link" href="/admin">← 返回帳號管理</a><section class="panel confirm-panel"><span class="danger-icon">!</span><p class="eyebrow">DANGEROUS ACTION</p><h1>刪除帳號？</h1><p>這會永久刪除 <strong>${escapeHtml(user.email)}</strong> 及其所有登入工作階段，無法復原。</p><div class="confirm-actions"><a class="secondary-button" href="/admin">取消</a><form method="post" action="/admin/users/${encodeURIComponent(user.id)}/delete"><input type="hidden" name="csrf" value="${token}"><button class="danger-button" type="submit">永久刪除帳號</button></form></div></section></main>`, admin.user.email, token));
     }
     if (action === 'delete' && request.method === 'POST') {
       if (userId === admin.user.id) return redirect('/admin?notice=' + encodeURIComponent('不能刪除目前登入的管理員'));
@@ -248,8 +263,8 @@ export async function handleAdmin(request, env) {
     }
     return new Response('Method Not Allowed', { status: 405, headers: { Allow: 'GET, POST' } });
   } catch (error) {
-    if (error?.status === 429) {
-      return html(loginPage(error.message), 429, error.headers || {});
+    if ([403, 413, 429].includes(error?.status)) {
+      return html(loginPage(error.message), error.status, error.headers || {});
     }
     console.error(error);
     return html(shell('後台錯誤', '<main class="login-shell"><section class="login-card"><h1>後台暫時無法使用</h1><p>請稍後再試。</p></section></main>'), 500);

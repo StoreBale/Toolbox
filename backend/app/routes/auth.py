@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import AuthSession, User
-from ..schemas import EmailCredentials, GoogleCredentials, SessionResponse, UserResponse
+from ..schemas import EmailCredentials, GoogleCredentials, RegistrationCredentials, SessionResponse, UserResponse
 from ..security import (
     DUMMY_PASSWORD_HASH,
     create_session_token,
@@ -23,6 +23,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 bearer = HTTPBearer(auto_error=False)
 DbSession = Annotated[Session, Depends(get_db)]
 Credentials = Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]
+MAX_USER_SESSIONS = 10
 
 
 def user_response(user: User) -> UserResponse:
@@ -32,6 +33,21 @@ def user_response(user: User) -> UserResponse:
 def issue_session(db: Session, user: User, remember: bool) -> SessionResponse:
     token, token_hash, expires_at = create_session_token(remember)
     db.add(AuthSession(token_hash=token_hash, user_id=user.id, expires_at=expires_at))
+    db.flush()
+    now = datetime.now(timezone.utc)
+    for expired in db.scalars(
+        select(AuthSession).where(AuthSession.user_id == user.id, AuthSession.expires_at <= now)
+    ):
+        db.delete(expired)
+    active_sessions = list(
+        db.scalars(
+            select(AuthSession)
+            .where(AuthSession.user_id == user.id, AuthSession.expires_at > now)
+            .order_by(AuthSession.created_at.desc(), AuthSession.id.desc())
+        )
+    )
+    for old_session in active_sessions[MAX_USER_SESSIONS:]:
+        db.delete(old_session)
     db.commit()
     return SessionResponse(token=token, expires_at=expires_at, user=user_response(user))
 
@@ -51,7 +67,7 @@ def require_session(credentials: Credentials, db: DbSession) -> AuthSession:
 
 
 @router.post("/register", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
-def register(payload: EmailCredentials, db: DbSession) -> SessionResponse:
+def register(payload: RegistrationCredentials, db: DbSession) -> SessionResponse:
     email = str(payload.email).lower()
     if db.scalar(select(User).where(User.email == email)):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="這個電子郵件已經註冊")
@@ -87,6 +103,12 @@ def google_login(payload: GoogleCredentials, db: DbSession) -> SessionResponse:
     if user:
         if user.google_sub and user.google_sub != google_sub:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="此電子郵件已連結其他 Google 帳號")
+        if not user.google_sub and user.password_hash:
+            if not payload.password or not verify_password(payload.password, user.password_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="這個信箱已有密碼帳號，請提供原帳號密碼以完成連結",
+                )
         user.google_sub = google_sub
     else:
         user = User(email=email, google_sub=google_sub)

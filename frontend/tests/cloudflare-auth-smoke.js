@@ -19,17 +19,46 @@ assert.equal(health.body.status, 'ok');
 
 const registration = await request('/api/auth/register', {
   method: 'POST',
+  headers: { Origin: baseUrl },
   body: JSON.stringify({ email, password, remember: false })
 });
 assert.equal(registration.response.status, 201, JSON.stringify(registration.body));
 assert.equal(registration.body.user.email, email);
 assert.equal(registration.body.user.provider, 'password');
+assert.equal('token' in registration.body, false);
+const registrationCookie = registration.response.headers.get('set-cookie');
+assert.match(registrationCookie, /__Host-toolbox_session=/);
+assert.match(registrationCookie, /Path=\//i);
+assert.match(registrationCookie, /HttpOnly/i);
+assert.match(registrationCookie, /Secure/i);
+assert.match(registrationCookie, /SameSite=Strict/i);
+assert.doesNotMatch(registrationCookie, /Max-Age=/i);
+
+const cookieMe = await request('/api/auth/me', {
+  headers: { Cookie: registrationCookie.split(';', 1)[0] }
+});
+assert.equal(cookieMe.response.status, 200);
+assert.equal(cookieMe.body.email, email);
+
+const cookieLogout = await request('/api/auth/logout', {
+  method: 'POST',
+  headers: { Cookie: registrationCookie.split(';', 1)[0] }
+});
+assert.equal(cookieLogout.response.status, 204);
+assert.match(cookieLogout.response.headers.get('set-cookie'), /Max-Age=0/i);
 
 const duplicate = await request('/api/auth/register', {
   method: 'POST',
   body: JSON.stringify({ email, password, remember: false })
 });
 assert.equal(duplicate.response.status, 409);
+
+const crossOrigin = await request('/api/auth/login', {
+  method: 'POST',
+  headers: { Origin: 'https://attacker.example' },
+  body: JSON.stringify({ email, password, remember: false })
+});
+assert.equal(crossOrigin.response.status, 403);
 
 const wrongPassword = await request('/api/auth/login', {
   method: 'POST',
@@ -48,6 +77,7 @@ const me = await request('/api/auth/me', {
 });
 assert.equal(me.response.status, 200);
 assert.equal(me.body.email, email);
+assert.match(me.response.headers.get('set-cookie'), /__Host-toolbox_session=/);
 
 const logout = await request('/api/auth/logout', {
   method: 'POST',

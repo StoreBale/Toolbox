@@ -2,6 +2,9 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const PASSWORD_ITERATIONS = 100_000;
 const SESSION_DAYS = 30;
+const SESSION_COOKIE = '__Host-toolbox_session';
+const MAX_REQUEST_BYTES = 16 * 1024;
+const MAX_USER_SESSIONS = 10;
 
 class ApiError extends Error {
   constructor(status, detail, code = null, headers = {}) {
@@ -35,6 +38,13 @@ async function safely(action) {
   }
 }
 
+function assertSameOrigin(request) {
+  const origin = request.headers.get('Origin');
+  if (request.headers.get('Sec-Fetch-Site') === 'cross-site' || (origin && origin !== new URL(request.url).origin)) {
+    throw new ApiError(403, '不允許跨來源請求');
+  }
+}
+
 function base64Url(bytes) {
   let value = '';
   for (const byte of bytes) value += String.fromCharCode(byte);
@@ -64,6 +74,9 @@ export async function consumeRateLimit(request, env, scope, subject, limit, wind
   const bucketKey = await rateLimitKey(env, scope, subject || clientAddress(request));
   const now = Math.floor(Date.now() / 1000);
   const expiresAt = now + windowSeconds;
+  if (crypto.getRandomValues(new Uint8Array(1))[0] === 0) {
+    await env.DB.prepare('DELETE FROM auth_rate_limits WHERE expires_at <= ?').bind(now).run();
+  }
   const row = await env.DB.prepare(`
     INSERT INTO auth_rate_limits (bucket_key, attempts, expires_at) VALUES (?, 1, ?)
     ON CONFLICT(bucket_key) DO UPDATE SET
@@ -139,6 +152,11 @@ function validPassword(value) {
 }
 
 async function payload(request) {
+  const contentLength = Number(request.headers.get('Content-Length') || 0);
+  if (contentLength > MAX_REQUEST_BYTES) throw new ApiError(413, '請求內容過大');
+  if (!(request.headers.get('Content-Type') || '').toLowerCase().startsWith('application/json')) {
+    throw new ApiError(415, '請使用 JSON 格式');
+  }
   try {
     return await request.json();
   } catch {
@@ -170,18 +188,60 @@ function sessionStatement(db, session) {
   ).bind(session.id, session.tokenHash, session.userId, session.expiresAt, session.createdAt);
 }
 
-function sessionResponse(user, session) {
+function sessionResponse(user, session, exposeToken = true) {
   return {
-    token: session.token,
+    ...(exposeToken ? { token: session.token } : {}),
     expires_at: session.expiresAt,
     user: userResponse(user)
   };
 }
 
+function sessionCookie(session, remember) {
+  const maxAge = remember
+    ? `; Max-Age=${Math.max(0, Math.floor((Date.parse(session.expiresAt) - Date.now()) / 1000))}`
+    : '';
+  return `${SESSION_COOKIE}=${session.token}${maxAge}; Path=/; HttpOnly; Secure; SameSite=Strict`;
+}
+
+function clearSessionCookie() {
+  return `${SESSION_COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict`;
+}
+
+function sessionJson(request, user, session, remember, status = 200) {
+  const sameOriginBrowser = request.headers.get('Origin') === new URL(request.url).origin;
+  return json(sessionResponse(user, session, !sameOriginBrowser), status, {
+    'Set-Cookie': sessionCookie(session, remember)
+  });
+}
+
+function cookieValue(request, name) {
+  for (const part of (request.headers.get('Cookie') || '').split(';')) {
+    const separator = part.indexOf('=');
+    if (separator >= 0 && part.slice(0, separator).trim() === name) return part.slice(separator + 1).trim();
+  }
+  return '';
+}
+
+async function trimUserSessions(env, userId) {
+  const now = new Date().toISOString();
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM auth_sessions WHERE expires_at <= ?').bind(now),
+    env.DB.prepare(`
+      DELETE FROM auth_sessions WHERE user_id = ? AND id NOT IN (
+        SELECT id FROM auth_sessions WHERE user_id = ? AND expires_at > ?
+        ORDER BY created_at DESC LIMIT ?
+      )
+    `).bind(userId, userId, now, MAX_USER_SESSIONS)
+  ]);
+}
+
 async function currentSession(request, env) {
   const authorization = request.headers.get('Authorization') || '';
-  if (!authorization.startsWith('Bearer ')) throw new ApiError(401, '請先登入');
-  const tokenHash = await sha256(authorization.slice(7));
+  const token = authorization.startsWith('Bearer ')
+    ? authorization.slice(7)
+    : cookieValue(request, SESSION_COOKIE);
+  if (!token) throw new ApiError(401, '請先登入');
+  const tokenHash = await sha256(token);
   const row = await env.DB.prepare(
     `SELECT s.id AS session_id, s.expires_at, u.id, u.email, u.password_hash, u.google_sub
      FROM auth_sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?`
@@ -242,6 +302,7 @@ async function verifyGoogleCredential(credential, clientId) {
 
 export function register(request, env) {
   return safely(async () => {
+    assertSameOrigin(request);
     await consumeRateLimit(request, env, 'register-ip', null, 8, 15 * 60);
     const body = await payload(request);
     const email = normalizedEmail(body.email);
@@ -270,12 +331,14 @@ export function register(request, env) {
       if (String(error).includes('UNIQUE')) throw new ApiError(409, '此電子郵件已經註冊');
       throw error;
     }
-    return json(sessionResponse(user, session), 201);
+    await trimUserSessions(env, user.id);
+    return sessionJson(request, user, session, Boolean(body.remember), 201);
   });
 }
 
 export function login(request, env) {
   return safely(async () => {
+    assertSameOrigin(request);
     await consumeRateLimit(request, env, 'login-ip', null, 40, 15 * 60);
     const body = await payload(request);
     const email = normalizedEmail(body.email);
@@ -290,12 +353,14 @@ export function login(request, env) {
     await clearRateLimit(env, 'login-account', email);
     const session = await newSession(user, Boolean(body.remember));
     await sessionStatement(env.DB, session).run();
-    return json(sessionResponse(user, session));
+    await trimUserSessions(env, user.id);
+    return sessionJson(request, user, session, Boolean(body.remember));
   });
 }
 
 export function googleLogin(request, env) {
   return safely(async () => {
+    assertSameOrigin(request);
     await consumeRateLimit(request, env, 'google-ip', null, 30, 15 * 60);
     const body = await payload(request);
     if (!env.GOOGLE_CLIENT_ID) throw new ApiError(503, 'Google 登入尚未設定');
@@ -347,18 +412,35 @@ export function googleLogin(request, env) {
     const session = await newSession(user, true);
     statements.push(sessionStatement(env.DB, session));
     await env.DB.batch(statements);
-    return json(sessionResponse(user, session));
+    await trimUserSessions(env, user.id);
+    return sessionJson(request, user, session, true);
   });
 }
 
 export function me(request, env) {
-  return safely(async () => json(userResponse(await currentSession(request, env))));
+  return safely(async () => {
+    const session = await currentSession(request, env);
+    const authorization = request.headers.get('Authorization') || '';
+    const headers = authorization.startsWith('Bearer ') && !cookieValue(request, SESSION_COOKIE)
+      ? {
+          'Set-Cookie': sessionCookie({
+            token: authorization.slice(7),
+            expiresAt: session.expires_at
+          }, true)
+        }
+      : {};
+    return json(userResponse(session), 200, headers);
+  });
 }
 
 export function logout(request, env) {
   return safely(async () => {
+    assertSameOrigin(request);
     const session = await currentSession(request, env);
     await env.DB.prepare('DELETE FROM auth_sessions WHERE id = ?').bind(session.session_id).run();
-    return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
+    return new Response(null, {
+      status: 204,
+      headers: { 'Cache-Control': 'no-store', 'Set-Cookie': clearSessionCookie() }
+    });
   });
 }

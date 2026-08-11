@@ -9,4 +9,4 @@ pwdlib[argon2]>=0.2,<1
 google-auth>=2.40,<3
 requests>=2.32,<3
 httpx>=0.28,<1
-pytest>=8.4,<9
+pytest>=9.0.3,<10

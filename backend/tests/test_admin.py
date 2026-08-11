@@ -75,7 +75,7 @@ def test_normal_user_cannot_log_in_to_admin(client, db_session, monkeypatch):
 def test_admin_can_revoke_and_delete_user(client, db_session, monkeypatch):
     registration = client.post(
         "/api/auth/register",
-        json={"email": "managed@example.com", "password": "password123", "remember": True},
+        json={"email": "managed@example.com", "password": "password12345", "remember": True},
     ).json()
     user = db_session.scalar(select(User).where(User.email == "managed@example.com"))
     login_admin(client, db_session, monkeypatch)

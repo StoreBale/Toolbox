@@ -9,3 +9,11 @@ database_id = "b5f7f317-73b5-4f34-bb6e-76388d77c183"
 
 [vars]
 GOOGLE_CLIENT_ID = "643484536755-cp7l7k4m0hieue03jirkr56j2271gbir.apps.googleusercontent.com"
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "toolbox-auth-preview"
+database_id = "31283ad8-0a93-4edf-bfb7-7a4f57ee99af"
+
+[env.preview.vars]
+GOOGLE_CLIENT_ID = "643484536755-cp7l7k4m0hieue03jirkr56j2271gbir.apps.googleusercontent.com"

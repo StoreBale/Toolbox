@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile } from 'node:fs/promises';
 import { PDFDocument } from 'pdf-lib';
+import { chromium } from 'playwright';
 import JSZip from 'jszip';
 import { createServer } from 'vite';
-import { chromium } from 'file:///C:/Users/stor/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs';
 
 const server = await createServer({ server: { host: '127.0.0.1', port: 4173 } });
 const browser = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });

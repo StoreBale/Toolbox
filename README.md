@@ -63,6 +63,12 @@ API 預設位於 `http://127.0.0.1:8000`，互動文件位於 `http://127.0.0.1:
 
 管理員的電子郵件、Argon2 密碼雜湊與 `is_admin` 角色都存於 PostgreSQL；`.env` 只保留 `ADMIN_SESSION_SECRET`。正式部署時請設定獨立的工作階段密鑰，並將 `ADMIN_COOKIE_SECURE` 改為 `true`。
 
+需要修改管理員密碼時，使用隱藏輸入提示：
+
+```powershell
+..\.venv\Scripts\python.exe scripts\bootstrap_admin.py --email admin@toolbox.local --prompt-password
+```
+
 後台可以：
 
 - 查看 PostgreSQL 連線狀態、使用者與有效登入統計

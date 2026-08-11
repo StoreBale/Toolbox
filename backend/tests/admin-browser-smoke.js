@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
-import { chromium } from 'file:///C:/Users/stor/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs';
+import { createRequire } from 'node:module';
+
+const require = createRequire(new URL('../../frontend/package.json', import.meta.url));
+const { chromium } = require('playwright');
 
 const adminEmail = process.env.TOOLBOX_ADMIN_EMAIL;
 const adminPassword = process.env.TOOLBOX_ADMIN_PASSWORD;

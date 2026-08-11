@@ -16,6 +16,7 @@
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
+    "playwright": "^1.62.1",
     "vite": "^7.1.1"
   }
 }

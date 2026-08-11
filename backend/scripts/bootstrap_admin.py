@@ -46,7 +46,7 @@ def remove_legacy_credentials() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="在 PostgreSQL 建立或更新後台管理員")
-    parser.add_argument("--email", default="admin@toolbox.local")
+    parser.add_argument("--email", default="admin")
     parser.add_argument("--password")
     args = parser.parse_args()
 

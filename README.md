@@ -150,7 +150,7 @@ docker-compose.yml 本機 PostgreSQL
 
 - Vite + JavaScript 前端
 - Cloudflare Pages Functions + D1 正式帳號 API
-- PBKDF2-HMAC-SHA256（600,000 iterations）密碼雜湊
+- PBKDF2-HMAC-SHA256（100,000 iterations）搭配伺服器端 pepper 的密碼雜湊
 - FastAPI + SQLAlchemy + PostgreSQL 保留為本機／獨立主機版本
 - `pdf-lib`、`pdfjs-dist`、`JSZip`、`qrcode`
 - Cloudflare Pages Root directory 為 `frontend`，建置輸出目錄為 `dist`

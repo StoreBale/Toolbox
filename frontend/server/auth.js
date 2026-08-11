@@ -1,6 +1,6 @@
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
-const PASSWORD_ITERATIONS = 600_000;
+const PASSWORD_ITERATIONS = 100_000;
 const SESSION_DAYS = 30;
 
 class ApiError extends Error {
@@ -46,8 +46,21 @@ async function sha256(value) {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function derivePassword(password, salt, iterations) {
-  const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
+async function passwordMaterial(password, pepper) {
+  if (!pepper) throw new ApiError(503, '密碼服務尚未完成設定');
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(pepper),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  return new Uint8Array(await crypto.subtle.sign('HMAC', key, encoder.encode(password)));
+}
+
+async function derivePassword(password, salt, iterations, pepper) {
+  const material = await passwordMaterial(password, pepper);
+  const key = await crypto.subtle.importKey('raw', material, 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
     { name: 'PBKDF2', hash: 'SHA-256', salt, iterations },
     key,
@@ -56,16 +69,16 @@ async function derivePassword(password, salt, iterations) {
   return new Uint8Array(bits);
 }
 
-async function hashPassword(password) {
+async function hashPassword(password, pepper) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
-  const hash = await derivePassword(password, salt, PASSWORD_ITERATIONS);
+  const hash = await derivePassword(password, salt, PASSWORD_ITERATIONS, pepper);
   return `pbkdf2_sha256$${PASSWORD_ITERATIONS}$${base64Url(salt)}$${base64Url(hash)}`;
 }
 
-async function verifyPassword(password, encoded) {
+async function verifyPassword(password, encoded, pepper) {
   const [algorithm, iterations, salt, expected] = String(encoded || '').split('$');
   if (algorithm !== 'pbkdf2_sha256' || !iterations || !salt || !expected) return false;
-  const actual = await derivePassword(password, fromBase64Url(salt), Number(iterations));
+  const actual = await derivePassword(password, fromBase64Url(salt), Number(iterations), pepper);
   const expectedBytes = fromBase64Url(expected);
   if (actual.length !== expectedBytes.length) return false;
   let difference = 0;
@@ -203,7 +216,7 @@ export function register(request, env) {
     const user = {
       id: crypto.randomUUID(),
       email,
-      password_hash: await hashPassword(password),
+      password_hash: await hashPassword(password, env.PASSWORD_PEPPER),
       google_sub: null,
       created_at: now
     };
@@ -231,7 +244,7 @@ export function login(request, env) {
     const user = await env.DB.prepare(
       'SELECT id, email, password_hash, google_sub FROM users WHERE email = ?'
     ).bind(email).first();
-    if (!user || !user.password_hash || !await verifyPassword(password, user.password_hash)) {
+    if (!user || !user.password_hash || !await verifyPassword(password, user.password_hash, env.PASSWORD_PEPPER)) {
       throw new ApiError(401, '電子郵件或密碼不正確');
     }
     const session = await newSession(user, Boolean(body.remember));

@@ -14,6 +14,22 @@ try {
   await mkdir('tmp/images', { recursive: true });
   await server.listen();
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await page.addInitScript(() => {
+    window.google = {
+      accounts: {
+        id: {
+          initialize() {},
+          renderButton(container) {
+            const button = document.createElement('button');
+            button.id = 'google-sdk-button';
+            button.type = 'button';
+            button.textContent = '使用 Google 繼續';
+            container.append(button);
+          }
+        }
+      }
+    };
+  });
   let testLoggedIn = false;
   await page.route('**/api/auth/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -40,8 +56,7 @@ try {
   await page.goto('http://127.0.0.1:4173', { waitUntil: 'networkidle' });
   assert.equal(await page.locator('.tool-card').count(), 23);
   await page.locator('#login-button').click();
-  await page.locator('#google-auth-placeholder').click();
-  assert.match(await page.locator('#auth-status').textContent(), /尚未設定/);
+  await page.locator('#google-sdk-button').waitFor({ state: 'visible' });
   await page.locator('[data-auth-mode="register"]').click();
   await page.locator('#auth-email').fill('browser-test@example.com');
   await page.locator('#auth-password').fill('toolbox-test-password');

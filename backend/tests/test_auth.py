@@ -44,7 +44,7 @@ def test_register_login_me_and_logout(client, db_session):
     assert client.get("/api/auth/me", headers=authorization(token)).status_code == 401
 
 
-def test_google_registration_and_existing_email_link(client, monkeypatch):
+def test_google_registration_and_existing_email_link(client, db_session, monkeypatch):
     client.post(
         "/api/auth/register",
         json={"email": "google@example.com", "password": "password123", "remember": False},
@@ -57,6 +57,18 @@ def test_google_registration_and_existing_email_link(client, monkeypatch):
     response = client.post("/api/auth/google", json={"credential": "mock-google-credential-value"})
     assert response.status_code == 200
     assert response.json()["user"] == {"email": "google@example.com", "provider": "google"}
+
+    users = list(db_session.scalars(select(User).where(User.email == "google@example.com")))
+    assert len(users) == 1
+    assert users[0].google_sub == "google-user-123"
+    assert users[0].password_hash
+
+    password_login = client.post(
+        "/api/auth/login",
+        json={"email": "google@example.com", "password": "password123", "remember": False},
+    )
+    assert password_login.status_code == 200
+    assert password_login.json()["user"]["email"] == "google@example.com"
 
 
 def test_health(client):

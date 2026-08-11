@@ -4,6 +4,7 @@ tmp/
 output/
 .idea/
 .venv/
+.wrangler/
 __pycache__/
 .pytest_cache/
 .coverage

@@ -30,7 +30,20 @@
 
 ## 本機開發
 
-需要 Node.js 20、Python 3.11 或更新版本，以及 Docker Desktop。
+正式環境使用 Cloudflare Pages Functions 與 D1。只開發前端／正式註冊 API 時需要 Node.js 20：
+
+```powershell
+Set-Location frontend
+npm install
+npx wrangler d1 execute toolbox-auth --local --file schema.sql
+$env:VITE_API_URL='/api'
+npm run build
+npx wrangler pages dev dist --port 8788
+```
+
+網站位於 `http://127.0.0.1:8788`，同網域的註冊 API 位於 `/api/auth/*`。
+
+下列 FastAPI + PostgreSQL 是保留的本機／獨立主機開發方式，需要 Python 3.11 或更新版本及 Docker Desktop。
 
 1. 啟動 PostgreSQL：
 
@@ -76,7 +89,7 @@ API 預設位於 `http://127.0.0.1:8000`，互動文件位於 `http://127.0.0.1:
 - 撤銷指定帳號的所有登入工作階段
 - 經二次確認後永久刪除帳號
 
-3. 開啟另一個終端並啟動前端：
+3. 開啟另一個終端並啟動 Vite 前端：
 
 ```powershell
 Set-Location frontend
@@ -102,7 +115,7 @@ Set-Location ..\backend
 - `http://localhost:5173`
 - `https://toolbox-a9q.pages.dev`
 
-將同一個 Client ID 同時填入前端 `.env`：
+Google Client ID 是公開的應用程式識別碼，正式環境設定於 `frontend/wrangler.toml`。若要覆寫本機 Vite／FastAPI 設定，將同一個 Client ID 填入前端 `.env`：
 
 ```env
 VITE_API_URL=http://127.0.0.1:8000/api
@@ -115,7 +128,7 @@ VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 ```
 
-前端取得 Google ID Token 後交給 Python API；API 會驗證簽章、audience、issuer、有效期限及電子郵件驗證狀態，再以 Google `sub` 建立或連結 PostgreSQL 使用者。此流程不需要把 Google Client Secret 放進前端或 Git。
+前端取得 Google ID Token 後交給 Pages Function；Function 會以 Google 公開金鑰驗證簽章、audience、issuer、有效期限及電子郵件驗證狀態，再以 Google `sub` 建立或連結 D1 使用者。相同電子郵件會連結到同一個帳號，原密碼登入仍可使用。此流程不需要 Google Client Secret。
 
 ## 專案結構
 
@@ -124,7 +137,10 @@ frontend/          Vite 前端專案
 frontend/public/   靜態資產與 Cloudflare Pages 路由規則
 frontend/src/      畫面、工具與前端共用邏輯
 frontend/tests/    前端邏輯與瀏覽器測試
-backend/app/       FastAPI、SQLAlchemy 資料模型與帳號 API
+frontend/functions/ Cloudflare Pages Functions 帳號 API
+frontend/server/   D1、密碼及 Google Token 驗證邏輯
+frontend/schema.sql D1 資料庫 schema
+backend/app/       本機／獨立主機用 FastAPI 帳號 API
 backend/alembic/   PostgreSQL schema migrations
 backend/tests/     後端 API 測試
 docker-compose.yml 本機 PostgreSQL
@@ -133,14 +149,15 @@ docker-compose.yml 本機 PostgreSQL
 ## 技術與部署
 
 - Vite + JavaScript 前端
-- FastAPI + SQLAlchemy + PostgreSQL 後端
-- Alembic 資料庫 migration、Argon2 密碼雜湊
+- Cloudflare Pages Functions + D1 正式帳號 API
+- PBKDF2-HMAC-SHA256（600,000 iterations）密碼雜湊
+- FastAPI + SQLAlchemy + PostgreSQL 保留為本機／獨立主機版本
 - `pdf-lib`、`pdfjs-dist`、`JSZip`、`qrcode`
-- 前端可部署至 Cloudflare Pages；Root directory 設為 `frontend`，建置輸出目錄為 `dist`
-- Python API 需部署至支援 Docker／Python 的服務，並在 Cloudflare Pages 設定正式 `VITE_API_URL`
+- Cloudflare Pages Root directory 為 `frontend`，建置輸出目錄為 `dist`
+- 正式前端與 API 同網域，不需要跨站 CORS 或外部 Python 主機
 
 ## 隱私設計
 
-- 帳號功能為選用；電子郵件、密碼雜湊、Google 帳號識別碼及工作階段會保存在 PostgreSQL。
+- 帳號功能為選用；正式環境的電子郵件、密碼雜湊、Google 帳號識別碼及工作階段保存在 Cloudflare D1，本機 FastAPI 模式則使用 PostgreSQL。
 - 不包含檔案上傳 API 或伺服器端文件處理。
 - `.env`、IDE 設定、暫存檔與建置產物皆排除於版本控制之外。

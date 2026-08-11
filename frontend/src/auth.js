@@ -1,7 +1,7 @@
 import { icon } from './icons.js';
 
 const API_URL = (import.meta.env?.VITE_API_URL || '/api').replace(/\/$/, '');
-const GOOGLE_CLIENT_ID = import.meta.env?.VITE_GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_ID = import.meta.env?.VITE_GOOGLE_CLIENT_ID || '643484536755-cp7l7k4m0hieue03jirkr56j2271gbir.apps.googleusercontent.com';
 const TOKEN_KEY = 'toolbox-auth-token';
 let currentUser = null;
 
@@ -189,8 +189,10 @@ export function bindAuth() {
   const password = document.querySelector('#auth-password');
   let mode = 'login';
 
-  setupGoogleButton(status);
-  document.querySelector('#login-button')?.addEventListener('click', () => dialog.showModal());
+  document.querySelector('#login-button')?.addEventListener('click', () => {
+    dialog.showModal();
+    requestAnimationFrame(() => setupGoogleButton(status));
+  });
   document.querySelector('#auth-close')?.addEventListener('click', () => dialog.close());
   dialog?.addEventListener('click', (event) => {
     if (event.target === dialog) dialog.close();

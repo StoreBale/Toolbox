@@ -1,6 +1,7 @@
 import argparse
 import secrets
 import sys
+from getpass import getpass
 from pathlib import Path
 
 
@@ -46,13 +47,16 @@ def remove_legacy_credentials() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="在 PostgreSQL 建立或更新後台管理員")
-    parser.add_argument("--email", default="admin")
-    parser.add_argument("--password")
+    parser.add_argument("--email", default="admin@toolbox.local")
+    password_group = parser.add_mutually_exclusive_group()
+    password_group.add_argument("--password")
+    password_group.add_argument("--prompt-password", action="store_true")
     args = parser.parse_args()
 
     lines, values = read_env()
     legacy_password = values.get("ADMIN_PASSWORD", "")
-    supplied_password = args.password or legacy_password
+    prompted_password = getpass("管理員密碼：") if args.prompt_password else ""
+    supplied_password = args.password or prompted_password or legacy_password
     if supplied_password and len(supplied_password) < 8:
         raise SystemExit("管理員密碼至少需要 8 個字元")
 
@@ -83,7 +87,7 @@ def main() -> None:
     print(f"管理員已儲存在 PostgreSQL：{email}")
     if legacy_password:
         print("已沿用原管理員密碼，並從 backend/.env 移除帳號與密碼。")
-    elif args.password:
+    elif args.password or args.prompt_password:
         print("已使用指定密碼；backend/.env 不會保存管理員密碼。")
     elif generated_password:
         print(f"初始密碼（僅顯示一次）：{generated_password}")

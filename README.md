@@ -66,6 +66,10 @@ API 預設位於 `http://127.0.0.1:8000`，互動文件位於 `http://127.0.0.1:
 
 ### 後台控制中心
 
+Cloudflare 正式後台位於 `https://toolbox-a9q.pages.dev/admin`，直接管理正式 D1 帳號與登入工作階段。管理員必須先是一般帳號，再將 D1 `users.is_admin` 設為 `1`；`ADMIN_SESSION_SECRET` 與 `PASSWORD_PEPPER` 必須存放於 Cloudflare Secrets，不得寫入 Git。
+
+FastAPI/PostgreSQL 後台仍保留供本機或獨立主機使用：
+
 第一次啟動前，先執行 migration，再於 `backend` 目錄建立資料庫管理員：
 
 ```powershell

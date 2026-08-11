@@ -75,7 +75,7 @@ async function hashPassword(password, pepper) {
   return `pbkdf2_sha256$${PASSWORD_ITERATIONS}$${base64Url(salt)}$${base64Url(hash)}`;
 }
 
-async function verifyPassword(password, encoded, pepper) {
+export async function verifyPassword(password, encoded, pepper) {
   const [algorithm, iterations, salt, expected] = String(encoded || '').split('$');
   if (algorithm !== 'pbkdf2_sha256' || !iterations || !salt || !expected) return false;
   const actual = await derivePassword(password, fromBase64Url(salt), Number(iterations), pepper);

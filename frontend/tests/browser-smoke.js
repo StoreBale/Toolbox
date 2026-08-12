@@ -57,9 +57,15 @@ try {
   assert.equal(await page.locator('.tool-card').count(), 23);
   await page.locator('#login-button').click();
   await page.locator('#google-sdk-button').waitFor({ state: 'visible' });
+  await page.mouse.click(5, 5);
+  assert.equal(await page.locator('#auth-dialog').evaluate((dialog) => dialog.open), true);
   await page.locator('[data-auth-mode="register"]').click();
   await page.locator('#auth-email').fill('browser-test@example.com');
   await page.locator('#auth-password').fill('toolbox-test-password');
+  await page.locator('#auth-show-password').check();
+  assert.equal(await page.locator('#auth-password').getAttribute('type'), 'text');
+  await page.locator('#auth-show-password').uncheck();
+  assert.equal(await page.locator('#auth-password').getAttribute('type'), 'password');
   await page.screenshot({ path: 'tmp/browser/desktop-register.png' });
   await page.locator('#auth-submit').click();
   await page.locator('.account-summary').waitFor();

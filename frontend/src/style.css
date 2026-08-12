@@ -85,8 +85,9 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
 .auth-field { display: block; margin-top: 14px; color: #344157; font-size: 12px; font-weight: 700; }
 .auth-field input { width: 100%; margin-top: 7px; padding: 12px 13px; border: 1px solid #cbd7e6; border-radius: 10px; color: #15233c; background: white; outline: none; }
 .auth-field input:focus { border-color: var(--green-700); box-shadow: 0 0 0 3px rgba(23, 105, 211, .1); }
-.auth-remember { display: flex; align-items: center; gap: 7px; margin: 14px 0 0; color: var(--muted); font-size: 11px; }
-.auth-remember input { width: 15px; height: 15px; accent-color: var(--green-700); }
+.auth-options { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 14px; margin: 14px 0 0; }
+.auth-option { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; }
+.auth-option input { width: 15px; height: 15px; accent-color: var(--green-700); }
 .auth-status { min-height: 19px; margin: 10px 0 0; color: #b33b2e; font-size: 11px; }
 .auth-submit { width: 100%; min-height: 47px; border: 0; border-radius: 11px; color: white; background: var(--green-950); font-weight: 750; }
 .auth-submit:hover:not(:disabled) { background: #123f91; }

@@ -129,7 +129,10 @@ export function authDialogTemplate() {
       <form id="auth-form">
         <label class="auth-field">電子郵件<input id="auth-email" type="email" autocomplete="email" required placeholder="name@example.com" /></label>
         <label class="auth-field">密碼<input id="auth-password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required placeholder="至少 8 個字元" /></label>
-        <label class="auth-remember"><input id="auth-remember" type="checkbox" /> 在這台裝置保持登入</label>
+        <div class="auth-options">
+          <label class="auth-option"><input id="auth-remember" type="checkbox" /> 在這台裝置保持登入</label>
+          <label class="auth-option"><input id="auth-show-password" type="checkbox" /> 顯示密碼</label>
+        </div>
         <p id="auth-status" class="auth-status" role="status"></p>
         <button id="auth-submit" class="auth-submit" type="submit">登入</button>
       </form>
@@ -199,15 +202,18 @@ export function bindAuth() {
   const status = document.querySelector('#auth-status');
   const submit = document.querySelector('#auth-submit');
   const password = document.querySelector('#auth-password');
+  const showPassword = document.querySelector('#auth-show-password');
   let mode = 'login';
 
   document.querySelector('#login-button')?.addEventListener('click', () => {
+    showPassword.checked = false;
+    password.type = 'password';
     dialog.showModal();
     requestAnimationFrame(() => setupGoogleButton(status));
   });
   document.querySelector('#auth-close')?.addEventListener('click', () => dialog.close());
-  dialog?.addEventListener('click', (event) => {
-    if (event.target === dialog) dialog.close();
+  showPassword?.addEventListener('change', () => {
+    password.type = showPassword.checked ? 'text' : 'password';
   });
   document.querySelector('#logout-button')?.addEventListener('click', async () => {
     try {

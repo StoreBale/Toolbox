@@ -16,7 +16,10 @@ export async function onRequest(context) {
     headers.set('Cache-Control', 'no-store');
     headers.set('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
   }
-  if (path.startsWith('/admin')) headers.set('X-Robots-Tag', 'noindex, nofollow');
+  if (path.startsWith('/admin')) {
+    headers.set('Referrer-Policy', 'same-origin');
+    headers.set('X-Robots-Tag', 'noindex, nofollow');
+  }
 
   return new Response(response.body, {
     status: response.status,

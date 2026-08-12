@@ -18,6 +18,7 @@ const loginPage = await request('/admin/login');
 assert.equal(loginPage.status, 200);
 assert.match(await loginPage.text(), /管理後台/);
 assert.equal(loginPage.headers.get('x-frame-options'), 'DENY');
+assert.equal(loginPage.headers.get('referrer-policy'), 'same-origin');
 
 const targetRegistration = await request('/api/auth/register', {
   method: 'POST',

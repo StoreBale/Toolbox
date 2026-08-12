@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict';
 import { googleLogin } from '../server/auth.js';
+import { onRequest } from '../functions/_middleware.js';
+
+const adminResponse = await onRequest({
+  request: new Request('https://example.com/admin/login'),
+  next: async () => new Response('admin')
+});
+assert.equal(adminResponse.headers.get('Referrer-Policy'), 'same-origin');
 
 function base64Url(value) {
   return Buffer.from(value).toString('base64url');
